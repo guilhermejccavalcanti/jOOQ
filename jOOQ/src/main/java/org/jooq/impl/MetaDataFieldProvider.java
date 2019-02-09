@@ -42,14 +42,12 @@ package org.jooq.impl;
 
 import static org.jooq.impl.DSL.field;
 import static org.jooq.impl.DSL.name;
-
 import java.io.Serializable;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.jooq.Configuration;
 import org.jooq.DataType;
 import org.jooq.Field;
@@ -77,10 +75,11 @@ class MetaDataFieldProvider implements Serializable {
     /**
      * Generated UID
      */
-    private static final long       serialVersionUID = -8482521025536063609L;
-    private static final JooqLogger log              = JooqLogger.getLogger(MetaDataFieldProvider.class);
+    private static final long serialVersionUID = -8482521025536063609L;
 
-    private final Fields<Record>    fields;
+    private static final JooqLogger log = JooqLogger.getLogger(MetaDataFieldProvider.class);
+
+    private final Fields<Record> fields;
 
     MetaDataFieldProvider(Configuration configuration, ResultSetMetaData meta) {
         this.fields = init(configuration, meta);
@@ -89,50 +88,34 @@ class MetaDataFieldProvider implements Serializable {
     private Fields<Record> init(Configuration configuration, ResultSetMetaData meta) {
         List<Field<?>> fieldList = new ArrayList<Field<?>>();
         int columnCount = 0;
-
         try {
             columnCount = meta.getColumnCount();
-        }
-
-        // This happens in Oracle for empty cursors returned from stored
-        // procedures / functions
-        catch (SQLException e) {
+        } catch (SQLException e) {
             log.info("Cannot fetch column count for cursor : " + e.getMessage());
             fieldList.add(field("dummy"));
         }
-
         try {
             for (int i = 1; i <= columnCount; i++) {
                 Name name;
-
                 String columnLabel = meta.getColumnLabel(i);
                 String columnName = meta.getColumnName(i);
-
                 if (columnName.equals(columnLabel)) {
                     try {
                         String columnSchema = meta.getSchemaName(i);
                         String columnTable = meta.getTableName(i);
                         name = name(columnSchema, columnTable, columnName);
-                    }
-
-                    // [#4939] Some JDBC drivers such as Teradata and Cassandra don't implement
-                    // ResultSetMetaData.getSchemaName and/or ResultSetMetaData.getTableName methods
-                    catch (SQLFeatureNotSupportedException e) {
+                    } catch (SQLFeatureNotSupportedException e) {
                         name = name(columnLabel);
                     }
-                }
-                else {
+                } else {
                     name = name(columnLabel);
                 }
-
                 int precision = meta.getPrecision(i);
                 int scale = meta.getScale(i);
                 DataType<?> dataType = SQLDataType.OTHER;
                 String type = meta.getColumnTypeName(i);
-
                 try {
                     dataType = DefaultDataType.getDataType(configuration.dialect().family(), type, precision, scale);
-
                     if (dataType.hasPrecision()) {
                         dataType = dataType.precision(precision);
                     }
@@ -140,26 +123,16 @@ class MetaDataFieldProvider implements Serializable {
                         dataType = dataType.scale(scale);
                     }
                     if (dataType.hasLength()) {
-
-                        // JDBC doesn't distinguish between precision and length
                         dataType = dataType.length(precision);
                     }
-                }
-
-                // [#650, #667] All types should be known at this point, but in plain
-                // SQL environments, it is possible that user-defined types, or vendor-specific
-                // types (e.g. such as PostgreSQL's json type) will cause this exception.
-                catch (SQLDialectNotSupportedException ignore) {
+                } catch (SQLDialectNotSupportedException ignore) {
                     log.debug("Not supported by dialect", ignore.getMessage());
                 }
-
                 fieldList.add(field(name, dataType));
             }
-        }
-        catch (SQLException e) {
+        } catch (SQLException e) {
             throw Utils.translate(null, e);
         }
-
         return new Fields<Record>(fieldList);
     }
 
@@ -170,7 +143,6 @@ class MetaDataFieldProvider implements Serializable {
     // -------------------------------------------------------------------------
     // The Object API
     // -------------------------------------------------------------------------
-
     @Override
     public String toString() {
         return fields.toString();
